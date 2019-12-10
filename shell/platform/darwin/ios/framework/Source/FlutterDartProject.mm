@@ -67,6 +67,7 @@ static flutter::Settings DefaultSettingsForProcess(NSBundle* bundle = nil) {
   }
 
   if (flutter::DartVM::IsRunningPrecompiledCode()) {
+    NSLog(@"bundle AOT Model");
     if (hasExplicitBundle) {
       NSString* executablePath = bundle.executablePath;
       if ([[NSFileManager defaultManager] fileExistsAtPath:executablePath]) {
@@ -119,6 +120,7 @@ static flutter::Settings DefaultSettingsForProcess(NSBundle* bundle = nil) {
       // potentially use.  Looking for the snapshot makes sense only if we have a VM that can use
       // it.
       if (!flutter::DartVM::IsRunningPrecompiledCode()) {
+        NSLog(@"bundle JIT Model");
         NSURL* applicationKernelSnapshotURL =
             [NSURL URLWithString:@(kApplicationKernelSnapshotFileName)
                    relativeToURL:[NSURL fileURLWithPath:assetsPath]];
@@ -145,6 +147,81 @@ static flutter::Settings DefaultSettingsForProcess(NSBundle* bundle = nil) {
   return settings;
 }
 
+static flutter::Settings DefaultSettingsForProcess(NSURL* flutterAssetsURL) {
+  auto command_line = flutter::CommandLineFromNSProcessInfo();
+
+  // Precedence:
+  // 1. Settings from the specified NSBundle.
+  // 2. Settings passed explicitly via command-line arguments.
+  // 3. Settings from the NSBundle with the default bundle ID.
+  // 4. Settings from the main NSBundle and default values.
+
+  NSBundle* engineBundle = [NSBundle bundleForClass:[FlutterViewController class]];
+
+  auto settings = flutter::SettingsFromCommandLine(command_line);
+
+  settings.task_observer_add = [](intptr_t key, fml::closure callback) {
+    fml::MessageLoop::GetCurrent().AddTaskObserver(key, std::move(callback));
+  };
+
+  settings.task_observer_remove = [](intptr_t key) {
+    fml::MessageLoop::GetCurrent().RemoveTaskObserver(key);
+  };
+
+  // The command line arguments may not always be complete. If they aren't, attempt to fill in
+  // defaults.
+  NSLog(@"flutterAssetsURL path = %@", flutterAssetsURL.path);
+  // Flutter ships the ICU data file in the the bundle of the engine. Look for it there.
+  if (settings.icu_data_path.size() == 0) {
+    NSString* icuDataPath = [engineBundle pathForResource:@"icudtl" ofType:@"dat"];
+    if (icuDataPath.length > 0) {
+      settings.icu_data_path = icuDataPath.UTF8String;
+      NSLog(@"icuDataPath = %@", icuDataPath);
+    }
+  }
+
+  // Checks to see if the flutter assets directory is already present.
+  if (settings.assets_path.size() == 0) {
+    if (![[NSFileManager defaultManager] fileExistsAtPath:flutterAssetsURL.path]) {
+      NSLog(@"Failed to find assets path \"%@\"", flutterAssetsURL);
+    } else {
+      // settings.assets_path = flutterAssetsURL.path.UTF8String;
+      settings.setAssets_path(flutterAssetsURL.path.UTF8String);
+
+      // Check if there is an application kernel snapshot in the assets directory we could
+      // potentially use.  Looking for the snapshot makes sense only if we have a VM that can use
+      // it.
+      if (!flutter::DartVM::IsRunningPrecompiledCode()) {
+        NSLog(@"Assets JIT Model");
+        NSURL* applicationKernelSnapshotURL =
+            [NSURL URLWithString:@(kApplicationKernelSnapshotFileName)
+                   relativeToURL:[NSURL fileURLWithPath:flutterAssetsURL.path]];
+        if ([[NSFileManager defaultManager] fileExistsAtPath:applicationKernelSnapshotURL.path]) {
+          // settings.application_kernel_asset = applicationKernelSnapshotURL.path.UTF8String;
+          settings.setApplication_kernel_asset(applicationKernelSnapshotURL.path.UTF8String);
+        } else {
+          NSLog(@"Failed to find snapshot: %@", applicationKernelSnapshotURL.path);
+        }
+      } else {
+        NSLog(@"Assets AOT Model");
+      }
+    }
+  }
+
+#if FLUTTER_RUNTIME_MODE == FLUTTER_RUNTIME_MODE_DEBUG
+  // There are no ownership concerns here as all mappings are owned by the
+  // embedder and not the engine.
+  auto make_mapping_callback = [](const uint8_t* mapping, size_t size) {
+    return [mapping, size]() { return std::make_unique<fml::NonOwnedMapping>(mapping, size); };
+  };
+
+  settings.dart_library_sources_kernel =
+      make_mapping_callback(kPlatformStrongDill, kPlatformStrongDillSize);
+#endif  // FLUTTER_RUNTIME_MODE == FLUTTER_RUNTIME_MODE_DEBUG
+
+  return settings;
+}
+
 @implementation FlutterDartProject {
   fml::scoped_nsobject<NSBundle> _precompiledDartBundle;
   flutter::Settings _settings;
@@ -153,7 +230,15 @@ static flutter::Settings DefaultSettingsForProcess(NSBundle* bundle = nil) {
 #pragma mark - Override base class designated initializers
 
 - (instancetype)init {
-  return [self initWithPrecompiledDartBundle:nil];
+  NSLog(@"==========Dart init");
+#if 1
+  NSString *assertsPath = [NSHomeDirectory() stringByAppendingPathComponent:@"Documents/flutter_assets"];
+  NSURL *assertsUrl = [NSURL fileURLWithPath:assertsPath];
+  return [self initWithFlutterAssetsURL:assertsUrl];
+#else
+  return [self initWithFlutterAssetsURL:nil];
+#endif
+  // return [self initWithPrecompiledDartBundle:nil];
 }
 
 #pragma mark - Designated initializers
@@ -164,8 +249,22 @@ static flutter::Settings DefaultSettingsForProcess(NSBundle* bundle = nil) {
   if (self) {
     _precompiledDartBundle.reset([bundle retain]);
     _settings = DefaultSettingsForProcess(bundle);
+    FML_LOG(ERROR) << "=====self: " << self;
+    FML_LOG(ERROR) << "bundle settings: " << _settings.ToString();
   }
 
+  return self;
+}
+
+//支持指定沙盒目录
+- (instancetype)initWithFlutterAssetsURL:(NSURL*)flutterAssetsURL
+{
+  if (self = [super init]) {
+    _settings = DefaultSettingsForProcess(flutterAssetsURL);
+    FML_LOG(ERROR) << "=====self: " << self;
+    FML_LOG(ERROR) << "flutterAssetsURL: " << flutterAssetsURL;
+    FML_LOG(ERROR) << "Assets settings: " << _settings.ToString();
+  }
   return self;
 }
 

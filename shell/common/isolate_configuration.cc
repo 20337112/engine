@@ -158,6 +158,8 @@ std::unique_ptr<IsolateConfiguration> IsolateConfiguration::InferFromSettings(
     return CreateForKernelList(settings.application_kernels());
   }
 
+  FML_LOG(ERROR) << "hm===settings: " << settings.ToString();
+
   if (settings.application_kernel_asset.empty() &&
       settings.application_kernel_list_asset.empty()) {
     FML_DLOG(ERROR) << "application_kernel_asset or "

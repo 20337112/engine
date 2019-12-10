@@ -19,6 +19,10 @@
 
 namespace flutter {
 
+//支持沙盒,kernel_blob.bin 文件路径
+static std::string s_application_kernel_asset = "";
+static std::string s_assets_path = "";
+
 class FrameTiming {
  public:
   enum Phase { kBuildStart, kBuildFinish, kRasterStart, kRasterFinish, kCount };
@@ -183,6 +187,12 @@ struct Settings {
   FrameRasterizedCallback frame_rasterized_callback;
 
   std::string ToString() const;
+
+  //设置沙盒目录 by hm 19/12/10
+  void setApplication_kernel_asset(std::string asset);
+  std::string getApplication_kernel_asset();
+  void setAssets_path(std::string asset);
+  std::string getAssets_path();
 };
 
 }  // namespace flutter

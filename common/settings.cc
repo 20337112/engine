@@ -19,12 +19,15 @@ Settings::~Settings() = default;
 std::string Settings::ToString() const {
   std::stringstream stream;
   stream << "Settings: " << std::endl;
+  stream << "ptr: " << this << std::endl;
   stream << "vm_snapshot_data_path: " << vm_snapshot_data_path << std::endl;
   stream << "vm_snapshot_instr_path: " << vm_snapshot_instr_path << std::endl;
   stream << "isolate_snapshot_data_path: " << isolate_snapshot_data_path
          << std::endl;
   stream << "isolate_snapshot_instr_path: " << isolate_snapshot_instr_path
          << std::endl;
+  stream << "application_kernel_asset: " << application_kernel_asset << std::endl;
+  stream << "application_kernel_list_asset: " << application_kernel_list_asset << std::endl;
   stream << "application_library_path:" << std::endl;
   for (const auto& path : application_library_path) {
     stream << "    " << path << std::endl;
@@ -57,7 +60,33 @@ std::string Settings::ToString() const {
   stream << "assets_path: " << assets_path << std::endl;
   stream << "frame_rasterized_callback set: " << !!frame_rasterized_callback
          << std::endl;
+  stream << "s_assets_path: " << s_assets_path << std::endl;
+  stream << "s_application_kernel_asset: " << s_application_kernel_asset << std::endl;
   return stream.str();
+}
+
+//设置沙盒目录 by hm 19/12/10
+void Settings::setApplication_kernel_asset(std::string asset)
+{
+       if (asset.size() > 0) {
+              application_kernel_asset = asset;
+              s_application_kernel_asset = asset;
+       }
+}
+std::string Settings::getApplication_kernel_asset()
+{
+       return (application_kernel_asset.size() > 0) ? application_kernel_asset : s_application_kernel_asset;
+}
+void Settings::setAssets_path(std::string asset)
+{
+       if (asset.size() > 0) {
+              assets_path = asset;
+              s_assets_path = asset;
+       }
+}
+std::string Settings::getAssets_path()
+{
+       return (assets_path.size() > 0) ? assets_path : s_assets_path;
 }
 
 }  // namespace flutter

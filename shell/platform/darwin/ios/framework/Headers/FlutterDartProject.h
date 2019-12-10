@@ -20,6 +20,8 @@ FLUTTER_EXPORT
  */
 - (instancetype)initWithPrecompiledDartBundle:(NSBundle*)bundle NS_DESIGNATED_INITIALIZER;
 
+//支持指定沙盒目录
+- (instancetype)initWithFlutterAssetsURL:(NSURL*)flutterAssetsURL NS_DESIGNATED_INITIALIZER;
 /**
  * Unavailable - use `init` instead.
  */

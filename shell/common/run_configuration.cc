@@ -16,6 +16,8 @@ namespace flutter {
 RunConfiguration RunConfiguration::InferFromSettings(
     const Settings& settings,
     fml::RefPtr<fml::TaskRunner> io_worker) {
+  FML_LOG(ERROR) << "InferFromSettings settings: " << settings.ToString();
+
   auto asset_manager = std::make_shared<AssetManager>();
 
   if (fml::UniqueFD::traits_type::IsValid(settings.assets_dir)) {
