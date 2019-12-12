@@ -25,13 +25,41 @@
 #if OS_IOS && (FLUTTER_RUNTIME_MODE == FLUTTER_RUNTIME_MODE_DEBUG)
 
 // These headers should only be needed in debug mode.
-#include <sys/sysctl.h>
-#include <sys/types.h>
 
 #define PT_TRACE_ME 0
 #define PT_SIGEXC 12
+
+#if 1
+
+#include <dlfcn.h>
+#include <sys/sysctl.h>
+#include <sys/types.h>
+
+typedef int (*ptrace_ptr_t)(int _request, pid_t _pid, caddr_t _addr, int _data);
+
+// #define callPtraceFun(request, pid, addr, data)     \
+// {   void* handle = dlopen(0, RTLD_GLOBAL | RTLD_NOW);   \
+//     ptrace_ptr_t ptrace_ptr = dlsym(handle, "ptrace");  \
+//     ptrace_ptr(request, pid, addr, data);                \
+//     dlclose(handle);                                    \
+// }
+
+int callPtraceFun(int request, pid_t pid, caddr_t addr, int data)
+{
+  void* handle = dlopen(0, RTLD_GLOBAL | RTLD_NOW);
+  ptrace_ptr_t ptrace_ptr = (ptrace_ptr_t)dlsym(handle, "ptrace");
+  int result = ptrace_ptr(request, pid, addr, data); 
+  dlclose(handle);  
+  return result;
+}
+
+#else
+#include <sys/sysctl.h>
+#include <sys/types.h>
+//通过宏定义混淆C函数 by hm 19/12/12
 extern "C" int ptrace(int request, pid_t pid, caddr_t addr, int data);
 
+#endif
 static bool DebuggedIOS(const flutter::Settings& vm_settings) {
   // Only the Flutter CLI passes "--enable-checked-mode". Therefore, if the flag
   // is present, we have been launched by "ios-deploy" via "debugserver".
@@ -62,13 +90,13 @@ void EnsureDebuggedIOS(const flutter::Settings& vm_settings) {
     return;
   }
 
-  if (ptrace(PT_TRACE_ME, 0, nullptr, 0) == -1) {
-    FML_LOG(ERROR) << "Could not call ptrace(PT_TRACE_ME): " << strerror(errno);
+  if (callPtraceFun(PT_TRACE_ME, 0, nullptr, 0) == -1) {
+    FML_LOG(ERROR) << "Could not call HM(PT_TRACE_ME): " << strerror(errno);
     // No use trying PT_SIGEXC -- it's only needed if PT_TRACE_ME succeeds.
     return;
   }
-  if (ptrace(PT_SIGEXC, 0, nullptr, 0) == -1) {
-    FML_LOG(ERROR) << "Could not call ptrace(PT_SIGEXC): " << strerror(errno);
+  if (callPtraceFun(PT_SIGEXC, 0, nullptr, 0) == -1) {
+    FML_LOG(ERROR) << "Could not call HM(PT_SIGEXC): " << strerror(errno);
   }
 
   // The previous operation causes this process to not be reaped after it
